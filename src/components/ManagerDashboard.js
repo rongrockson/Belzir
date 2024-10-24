@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import Modal from './Modal'; // Reusable Modal component
+import Modal from './Modal';
 
 function ManagerDashboard() {
     const { user, logout } = useAuth();
@@ -11,18 +11,23 @@ function ManagerDashboard() {
     const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
     const [selectedRequest, setSelectedRequest] = useState(null);
     const [rejectionReason, setRejectionReason] = useState('');
-    const [expandedRequest, setExpandedRequest] = useState(null); // Track expanded request
+    const [expandedRequest, setExpandedRequest] = useState(null);
     const navigate = useNavigate();
 
     useEffect(() => {
+        let isActive = true; // Flag to track if component is mounted
+
         const fetchRequests = async () => {
             try {
+                if (!isActive) return; // Check if component is still mounted
                 setLoading(true);
                 setError(null);
 
                 const response = await fetch(`${process.env.REACT_APP_PURCHASE_SERVICE_URL}/purchases/manager`, {
                     credentials: 'include',
                 });
+
+                if (!isActive) return; // Check again after async operation
 
                 if (response.ok) {
                     const data = await response.json();
@@ -32,25 +37,40 @@ function ManagerDashboard() {
                         setRequests([]);
                     }
                 } else if (response.status === 401) {
-                    await logout();
-                    navigate('/');
+                    if (isActive) {
+                        await logout();
+                        navigate('/', { replace: true }); // Use replace to prevent navigation stack issues
+                    }
                 } else {
                     const errorData = await response.json();
                     throw new Error(errorData.error || 'Failed to fetch requests');
                 }
             } catch (error) {
-                setError(error.message || 'Failed to load requests. Please try again later.');
+                if (isActive) {
+                    setError(error.message || 'Failed to load requests. Please try again later.');
+                }
             } finally {
-                setLoading(false);
+                if (isActive) {
+                    setLoading(false);
+                }
             }
         };
 
         fetchRequests();
+
+        // Cleanup function
+        return () => {
+            isActive = false;
+        };
     }, [logout, navigate]);
 
     const handleLogout = async () => {
-        logout();
-        navigate('/');
+        try {
+            await logout();
+            navigate('/', { replace: true });
+        } catch (error) {
+            console.error('Logout error:', error);
+        }
     };
 
     const handleApproveRequest = async (requestId) => {
@@ -71,7 +91,7 @@ function ManagerDashboard() {
                 ));
             } else if (response.status === 401) {
                 await logout();
-                navigate('/');
+                navigate('/', { replace: true });
             } else {
                 const errorData = await response.json();
                 throw new Error(errorData.error || 'Failed to approve request');
@@ -113,7 +133,7 @@ function ManagerDashboard() {
                 setSelectedRequest(null);
             } else if (response.status === 401) {
                 await logout();
-                navigate('/');
+                navigate('/', { replace: true });
             } else {
                 const errorData = await response.json();
                 throw new Error(errorData.error || 'Failed to reject request');
@@ -123,11 +143,11 @@ function ManagerDashboard() {
         }
     };
 
+    // Rest of the component remains the same...
     const toggleExpand = (requestId) => {
-        setExpandedRequest(expandedRequest === requestId ? null : requestId); // Toggle expand/collapse
+        setExpandedRequest(expandedRequest === requestId ? null : requestId);
     };
 
-    // Sort requests by pending status first
     const sortedRequests = requests.sort((a, b) => {
         if (a.status === 'pending' && b.status !== 'pending') return -1;
         if (a.status !== 'pending' && b.status === 'pending') return 1;
@@ -162,7 +182,7 @@ function ManagerDashboard() {
             <div className="flex justify-between items-center mb-6">
                 <div>
                     <h1 className="text-2xl font-bold">Manager Dashboard</h1>
-                    <p className="text-gray-600">Welcome!</p>
+                    <p className="text-gray-600">Welcome, {user?.fullName}</p>
                 </div>
                 <button
                     onClick={handleLogout}
@@ -172,7 +192,7 @@ function ManagerDashboard() {
                 </button>
             </div>
 
-            <h2 className="text-xl font-semibold mb-4">Assigned Requests(Click to expand/collapse)</h2>
+            <h2 className="text-xl font-semibold mb-4">Assigned Requests (Click to expand/collapse)</h2>
             <ul>
                 {sortedRequests.map((request) => (
                     <li key={request._id}>
@@ -194,13 +214,19 @@ function ManagerDashboard() {
                                 {request.status === 'pending' && (
                                     <div className="space-x-2 mt-4">
                                         <button
-                                            onClick={() => handleApproveRequest(request._id)}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleApproveRequest(request._id);
+                                            }}
                                             className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600"
                                         >
                                             Approve
                                         </button>
                                         <button
-                                            onClick={() => handleRejectRequest(request)}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleRejectRequest(request);
+                                            }}
                                             className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600"
                                         >
                                             Reject
@@ -216,7 +242,6 @@ function ManagerDashboard() {
                 ))}
             </ul>
 
-            {/* Reject Reason Modal */}
             {isRejectModalOpen && selectedRequest && (
                 <Modal onClose={() => setIsRejectModalOpen(false)}>
                     <h2 className="text-xl font-semibold mb-4">Reject Request</h2>
@@ -246,19 +271,18 @@ function ManagerDashboard() {
             )}
         </div>
     );
+}
 
-    // Helper function to get status styles
-    function getStatusStyles(status) {
-        switch (status.toLowerCase()) {
-            case 'pending':
-                return 'bg-yellow-100 text-yellow-800';
-            case 'approved':
-                return 'bg-green-100 text-green-800';
-            case 'rejected':
-                return 'bg-red-100 text-red-800';
-            default:
-                return 'bg-gray-100 text-gray-800';
-        }
+function getStatusStyles(status) {
+    switch (status.toLowerCase()) {
+        case 'pending':
+            return 'bg-yellow-100 text-yellow-800';
+        case 'approved':
+            return 'bg-green-100 text-green-800';
+        case 'rejected':
+            return 'bg-red-100 text-red-800';
+        default:
+            return 'bg-gray-100 text-gray-800';
     }
 }
 

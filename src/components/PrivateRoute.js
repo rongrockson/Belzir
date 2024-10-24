@@ -17,18 +17,22 @@ function PrivateRoute({ allowedRoles }) {
     }
 
     if (!user) {
-        // Store the attempted URL for redirect after login
+        console.log('No user found, redirecting to login.');
         return <Navigate to="/" state={{ from: location }} replace />;
     }
 
     if (!user.role) {
-        // Redirect to role selection if no role is set
+        console.log('User found but no role set, redirecting to role selection.');
         return <Navigate to="/select-role" state={{ from: location }} replace />;
     }
 
     if (!allowedRoles.includes(user.role)) {
+        console.log(`Unauthorized access: user role ${user.role} not allowed.`);
         return <Navigate to="/unauthorized" state={{ from: location }} replace />;
     }
+
+    console.log('User authorized:', user);
+
 
     return <Outlet />;
 }
