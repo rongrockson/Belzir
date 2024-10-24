@@ -14,8 +14,11 @@ function UserDashboard() {
         const fetchRequests = async () => {
             try {
                 const userId = user.id;
+                console.log('userId:' + userId);
+                console.log('process.env.REACT_APP_PURCHASE_SERVICE_URL:' + process.env.REACT_APP_PURCHASE_SERVICE_URL);
                 const response = await fetch(`${process.env.REACT_APP_PURCHASE_SERVICE_URL}/purchases/${userId}`, {
                     credentials: 'include',
+                    'Access-Control-Allow-Credentials': true,
                 });
                 if (response.ok) {
                     const data = await response.json();

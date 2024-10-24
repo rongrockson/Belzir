@@ -4,40 +4,43 @@ import React, { createContext, useState, useEffect, useContext } from 'react';
 const AuthContext = createContext();
 
 export function AuthProvider({ children }) {
-    const [user, setUser] = useState(() => {
-        const storedUser = localStorage.getItem('user');
-        return storedUser ? JSON.parse(storedUser) : null;
-    });
+    const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
 
-    // Function to check authentication status
-    const checkAuthStatus = async () => {
-        try {
-            const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/auth/status`, {
-                credentials: 'include', // Important for sending cookies
-            });
+    useEffect(() => {
+        const checkAuth = async () => {
+            try {
+                const response = await fetch(
+                    `${process.env.REACT_APP_BACKEND_URL}/auth/status`,
+                    {
+                        credentials: 'include',
+                        headers: {
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json',
+                        }
+                    }
+                );
 
-            if (response.ok) {
-                const data = await response.json();
-                if (data.authenticated && data.user) {
-                    setUser(data.user);
-                    localStorage.setItem('user', JSON.stringify(data.user));
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.authenticated && data.user) {
+                        setUser(data.user);
+                    } else {
+                        setUser(null);
+                    }
                 } else {
                     setUser(null);
-                    localStorage.removeItem('user');
                 }
-            } else {
+            } catch (error) {
+                console.error('Auth check error:', error);
                 setUser(null);
-                localStorage.removeItem('user');
+            } finally {
+                setLoading(false);
             }
-        } catch (error) {
-            console.error('Error checking auth status:', error);
-            setUser(null);
-            localStorage.removeItem('user');
-        } finally {
-            setLoading(false);
-        }
-    };
+        };
+
+        checkAuth();
+    }, []);
 
     // Function to log in the user
     const login = () => {
@@ -83,8 +86,8 @@ export function AuthProvider({ children }) {
         }
     };
 
-    // Function to handle authentication after login
     const handleAuth = (userData) => {
+        console.log('Received user data:', userData);  // Add this line to debug
         const fullName = `${userData.name.givenName} ${userData.name.familyName}`;
         userData.fullName = fullName;
 
@@ -93,7 +96,8 @@ export function AuthProvider({ children }) {
     };
 
     useEffect(() => {
-        checkAuthStatus();
+        const storedUser = localStorage.getItem('user');
+        console.log('User from localStorage on component mount:', storedUser);
     }, []);
 
     return (
@@ -106,3 +110,5 @@ export function AuthProvider({ children }) {
 export function useAuth() {
     return useContext(AuthContext);
 }
+
+
